@@ -77,7 +77,7 @@ func (h *EventHandler) OnPropertiesChanged(playbackStatus string, track Track) {
 	}
 
 	if track.isDifferent(h.track) {
-		h.displayScroll = 0
+		h.ResetDisplayScroll()
 	}
 	h.track = &track
 
@@ -165,7 +165,7 @@ func (h *EventHandler) handleNoteOn(note *channel.NoteOn) {
 		}
 	case NOTE_ENCODER:
 		h.displayMode = (h.displayMode + 1) % 4
-		h.displayScroll = 0
+		h.ResetDisplayScroll()
 		h.UpdateDisplay()
 	case NOTE_BANK_LEFT:
 		h.monitor.SelectPlayer(-1)
@@ -188,17 +188,14 @@ func (h *EventHandler) handleControlChange(cc *channel.ControlChange) {
 	case CC_FADER:
 		h.mixer.SetVolume(float32(cc.Value()) / 127)
 	case CC_LED_RING:
-		if cc.Value() == 1 {
-			h.displayScroll += 1
-		}
-		if cc.Value() == 65 {
-			h.displayScroll -= 1
-			if h.displayScroll < 0 {
-				h.displayScroll = 0
-			}
-		}
+		h.displayScroll = int(cc.Value())
 		h.UpdateDisplay()
 	}
+}
+
+func (h *EventHandler) ResetDisplayScroll() {
+	h.displayScroll = 0
+	h.controller.writer.ControlChange(CC_LED_RING, 0)
 }
 
 func (h *EventHandler) HandleVolume(volume float32) {

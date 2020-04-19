@@ -138,6 +138,7 @@ func (c *MidiController) CreateSegmentDisplayData(characters string) []byte {
 	textBytes := make([]byte, 12)
 	copy(textBytes, unidecode.Unidecode(characters))
 	data := lcd7bitRender(textBytes)
+	dots := lcd7bitRenderDots(textBytes)
 
-	return append([]byte{0x00, 0x20, 0x32, 0x41, 0x37}, append(data, []byte{0, 0}...)...)
+	return append([]byte{0x00, 0x20, 0x32, 0x41, 0x37}, append(data, dots...)...)
 }
