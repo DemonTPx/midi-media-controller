@@ -4,6 +4,9 @@ import (
 	"github.com/godbus/dbus"
 	"gitlab.com/gomidi/rtmididrv"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 )
 
 func main() {
@@ -19,6 +22,7 @@ func main() {
 	defer midiController.Close()
 
 	must(midiController.Reset())
+	defer midiController.Reset()
 
 	sessionBus, err := dbus.SessionBus()
 	must(err)
@@ -38,8 +42,10 @@ func main() {
 
 	eventHandler.Setup()
 
-	// TODO: OS signal handler?
-	select {}
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+
+	<-signals
 }
 
 func must(err error) {

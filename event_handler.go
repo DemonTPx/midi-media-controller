@@ -154,9 +154,9 @@ func (h *EventHandler) HandleMidiMessage(pos *mid.Position, msg midi.Message) {
 				h.displayScroll = 0
 				h.UpdateDisplay()
 			case NOTE_BANK_LEFT:
-				h.monitor.SelectNextPlayer()
+				h.monitor.SelectPlayer(-1)
 			case NOTE_BANK_RIGHT:
-				h.monitor.SelectNextPlayer() // TODO: select previous instead of next
+				h.monitor.SelectPlayer(+1)
 			case NOTE_FADER:
 				h.mixer.SetOnVolumeChangeCallback(nil)
 			}

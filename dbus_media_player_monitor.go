@@ -25,7 +25,7 @@ type DbusMediaPlayerMonitor struct {
 func (m *DbusMediaPlayerMonitor) Init() error {
 	m.playerList = make(map[string]*DbusMediaPlayer)
 
-	names := []string{}
+	var names []string
 	err := m.bus.BusObject().Call(listNames, 0).Store(&names)
 
 	if err != nil {
@@ -124,24 +124,17 @@ func (m *DbusMediaPlayerMonitor) removePlayer(name string, ownerName string) {
 		return
 	}
 
+	if *m.activePlayer == ownerName {
+		m.SelectPlayer(-1)
+	}
+
 	player.Close()
 	delete(m.playerList, ownerName)
 
 	if *m.activePlayer == ownerName {
 		m.activePlayer = nil
-
-		for key := range m.playerList {
-			// TODO: always switches to the first player
-			m.activePlayer = &key
-			break
-		}
-
 		if m.activePlayerChangedCallback != nil {
-			if m.activePlayer != nil {
-				m.activePlayerChangedCallback(m.GetActivePlayer())
-			} else {
-				m.activePlayerChangedCallback(nil)
-			}
+			m.activePlayerChangedCallback(nil)
 		}
 	}
 }
@@ -168,26 +161,24 @@ func (m *DbusMediaPlayerMonitor) SetActivePlayerChangedCallback(callback func(pl
 	m.activePlayerChangedCallback = callback
 }
 
-func (m *DbusMediaPlayerMonitor) SelectNextPlayer() {
-	next := false
-	for key := range m.playerList {
-		if next {
-			m.activePlayer = &key
-			next = false
-			break
-		}
-		if key == *m.activePlayer {
-			next = true
-		}
+func (m *DbusMediaPlayerMonitor) SelectPlayer(offset int) {
+	if len(m.playerList) < 2 {
+		return
 	}
 
-	if next {
-		for key := range m.playerList {
-			// TODO: maybe a weird way to select the first one?
-			m.activePlayer = &key
-			break
+	var keyList []string
+	current := -1
+	index := 0
+	for key := range m.playerList {
+		keyList = append(keyList, key)
+		if key == *m.activePlayer {
+			current = index
 		}
+		index++
 	}
+
+	newIndex := (((current + offset) % index) + index) % index
+	m.activePlayer = &keyList[newIndex]
 
 	if m.activePlayerChangedCallback != nil {
 		m.activePlayerChangedCallback(m.GetActivePlayer())
