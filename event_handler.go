@@ -129,60 +129,75 @@ func (h *EventHandler) UpdateDisplay() {
 
 func (h *EventHandler) HandleMidiMessage(pos *mid.Position, msg midi.Message) {
 	if note, ok := msg.(channel.NoteOn); ok {
-		if note.Velocity() != 0 {
-			switch note.Key() {
-			case NOTE_PREVIOUS:
-				if h.player != nil {
-					h.player.Previous()
-					h.player.Play()
-				}
-			case NOTE_NEXT:
-				if h.player != nil {
-					h.player.Next()
-					h.player.Play()
-				}
-			case NOTE_STOP:
-				if h.player != nil {
-					h.player.Stop()
-				}
-			case NOTE_PLAY:
-				if h.player != nil {
-					h.player.PlayPause()
-				}
-			case NOTE_ENCODER:
-				h.displayMode = (h.displayMode + 1) % 4
-				h.displayScroll = 0
-				h.UpdateDisplay()
-			case NOTE_BANK_LEFT:
-				h.monitor.SelectPlayer(-1)
-			case NOTE_BANK_RIGHT:
-				h.monitor.SelectPlayer(+1)
-			case NOTE_FADER:
-				h.mixer.SetOnVolumeChangeCallback(nil)
-			}
-		}
+		h.handleNoteOn(&note)
 	}
 	if note, ok := msg.(channel.NoteOff); ok {
-		if note.Key() == NOTE_FADER {
-			h.mixer.SetOnVolumeChangeCallback(h.HandleVolume)
-		}
+		h.handleNoteOff(&note)
 	}
 	if controlChange, ok := msg.(channel.ControlChange); ok {
-		if controlChange.Controller() == CC_FADER {
-			h.mixer.SetVolume(float32(controlChange.Value()) / 127)
+		h.handleControlChange(&controlChange)
+	}
+}
+
+func (h *EventHandler) handleNoteOn(note *channel.NoteOn) {
+	if note.Velocity() == 0 {
+		return
+	}
+
+	switch note.Key() {
+	case NOTE_PREVIOUS:
+		if h.player != nil {
+			h.player.Previous()
+			h.player.Play()
 		}
-		if controlChange.Controller() == CC_LED_RING {
-			if controlChange.Value() == 1 {
-				h.displayScroll += 1
-			}
-			if controlChange.Value() == 65 {
-				h.displayScroll -= 1
-				if h.displayScroll < 0 {
-					h.displayScroll = 0
-				}
-			}
-			h.UpdateDisplay()
+	case NOTE_NEXT:
+		if h.player != nil {
+			h.player.Next()
+			h.player.Play()
 		}
+	case NOTE_STOP:
+		if h.player != nil {
+			h.player.Stop()
+		}
+	case NOTE_PLAY:
+		if h.player != nil {
+			h.player.PlayPause()
+		}
+	case NOTE_ENCODER:
+		h.displayMode = (h.displayMode + 1) % 4
+		h.displayScroll = 0
+		h.UpdateDisplay()
+	case NOTE_BANK_LEFT:
+		h.monitor.SelectPlayer(-1)
+	case NOTE_BANK_RIGHT:
+		h.monitor.SelectPlayer(+1)
+	case NOTE_FADER:
+		h.mixer.SetOnVolumeChangeCallback(nil)
+	}
+}
+
+func (h *EventHandler) handleNoteOff(note *channel.NoteOff) {
+	switch note.Key() {
+	case NOTE_FADER:
+		h.mixer.SetOnVolumeChangeCallback(h.HandleVolume)
+	}
+}
+
+func (h *EventHandler) handleControlChange(cc *channel.ControlChange) {
+	switch cc.Controller() {
+	case CC_FADER:
+		h.mixer.SetVolume(float32(cc.Value()) / 127)
+	case CC_LED_RING:
+		if cc.Value() == 1 {
+			h.displayScroll += 1
+		}
+		if cc.Value() == 65 {
+			h.displayScroll -= 1
+			if h.displayScroll < 0 {
+				h.displayScroll = 0
+			}
+		}
+		h.UpdateDisplay()
 	}
 }
 
