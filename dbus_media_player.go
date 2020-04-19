@@ -26,6 +26,8 @@ type DbusMediaPlayer struct {
 	name                      string
 	nameLower                 string
 	mprisObj                  dbus.BusObject
+	playbackStatus            string
+	track                     Track
 	propertiesChangedCallback func(playbackStatus string, track Track)
 }
 
@@ -70,33 +72,30 @@ func (p *DbusMediaPlayer) Next() {
 }
 
 func (p *DbusMediaPlayer) FetchProperties() (string, Track) {
-	var playbackStatus string
-	p.mprisObj.Call(propertiesGet, 0, mprisPlayerName, "PlaybackStatus").Store(&playbackStatus)
+	p.mprisObj.Call(propertiesGet, 0, mprisPlayerName, "PlaybackStatus").Store(&p.playbackStatus)
 
 	var metadataVariant map[string]dbus.Variant
 	p.mprisObj.Call(propertiesGet, 0, mprisPlayerName, "Metadata").Store(&metadataVariant)
+	p.track = parseMetadata(metadataVariant)
 
-	return playbackStatus, parseMetadata(metadataVariant)
+	return p.playbackStatus, p.track
 }
 
 func (p *DbusMediaPlayer) onPropertiesChanged(propertiesVariant map[string]dbus.Variant) {
-	var playbackStatus string
-	var track Track
-
 	if variant, found := propertiesVariant["PlaybackStatus"]; found {
 		if val, ok := variant.Value().(string); ok {
-			playbackStatus = val
+			p.playbackStatus = val
 		}
 	}
 
 	if variant, found := propertiesVariant["Metadata"]; found {
 		if metadata, ok := variant.Value().(map[string]dbus.Variant); ok {
-			track = parseMetadata(metadata)
+			p.track = parseMetadata(metadata)
 		}
 	}
 
 	if p.propertiesChangedCallback != nil {
-		p.propertiesChangedCallback(playbackStatus, track)
+		p.propertiesChangedCallback(p.playbackStatus, p.track)
 	}
 }
 
