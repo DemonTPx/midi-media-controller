@@ -1,0 +1,7 @@
+Package: midi-media-controller
+Version: %VERSION%
+Maintainer: Bert Hekman <demontpx@gmail.com>
+Homepage: https://github.com/DemonTPx/midi-media-controller
+Architecture: amd64
+Section: sound
+Description: MIDI media player controller using dbus and pulseaudio
