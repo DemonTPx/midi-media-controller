@@ -60,6 +60,10 @@ func (m *DbusMediaPlayerMonitor) Init() error {
 }
 
 func (m *DbusMediaPlayerMonitor) GetActivePlayer() *DbusMediaPlayer {
+	if m.activePlayer == nil {
+		return nil
+	}
+
 	return m.playerList[*m.activePlayer]
 }
 
