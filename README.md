@@ -10,6 +10,7 @@ Small hobby project which connects my Behringer X-Touch One MIDI controller to D
 - The encoder knob scrolls the text on the LCD screen
 - The bank left and right buttons switch between different available media players
 - The fader controls the volume of the default pulseaudio sink
+- The top left (time) button toggles the segment display between the player name or the current time
 
 ### Notes
 
