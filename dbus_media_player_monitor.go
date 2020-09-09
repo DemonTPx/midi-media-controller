@@ -22,6 +22,12 @@ type DbusMediaPlayerMonitor struct {
 	activePlayerChangedCallback func(player *DbusMediaPlayer)
 }
 
+func NewDbusMediaPlayerMonitor(bus *dbus.Conn) *DbusMediaPlayerMonitor {
+	return &DbusMediaPlayerMonitor{
+		bus: bus,
+	}
+}
+
 func (m *DbusMediaPlayerMonitor) Init() error {
 	m.playerList = make(map[string]*DbusMediaPlayer)
 

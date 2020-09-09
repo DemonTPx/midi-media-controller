@@ -7,16 +7,28 @@ import (
 	"gitlab.com/gomidi/midi/mid"
 	"gitlab.com/gomidi/midi/midimessage/channel"
 	"strings"
+	"time"
 )
 
 type EventHandler struct {
-	controller    *MidiController
-	monitor       *DbusMediaPlayerMonitor
-	mixer         *AudioMixer
-	player        *DbusMediaPlayer
-	track         *Track
+	controller *MidiController
+	monitor    *DbusMediaPlayerMonitor
+	mixer      *AudioMixer
+	player     *DbusMediaPlayer
+	track      *Track
+
 	displayScroll int
 	displayMode   int
+
+	segmentDisplayMode int
+}
+
+func NewEventHandler(controller *MidiController, monitor *DbusMediaPlayerMonitor, mixer *AudioMixer) *EventHandler {
+	return &EventHandler{
+		controller: controller,
+		monitor:    monitor,
+		mixer:      mixer,
+	}
 }
 
 const (
@@ -26,10 +38,15 @@ const (
 	displayAlbum       = 3
 )
 
+const (
+	segmentDisplayPlayer = 0
+	segmentDisplayTime   = 1
+)
+
 var playerColorMap = map[string]uint8{
-	"spotify":   COLOR_GREEN,
-	"chrome":    COLOR_YELLOW,
-	"rhythmbox": COLOR_CYAN,
+	"spotify":   ColorGreen,
+	"chrome":    ColorYellow,
+	"rhythmbox": ColorCyan,
 }
 
 func (h *EventHandler) Setup() {
@@ -39,6 +56,7 @@ func (h *EventHandler) Setup() {
 	h.player = h.monitor.GetActivePlayer()
 	h.InitPlayer()
 	h.controller.reader.Msg.Each = h.HandleMidiMessage
+	go Ticker(250*time.Millisecond, h)
 }
 
 func (h *EventHandler) InitPlayer() {
@@ -63,17 +81,17 @@ func (h *EventHandler) OnActivePlayerChanged(player *DbusMediaPlayer) {
 func (h *EventHandler) OnPropertiesChanged(playbackStatus string, track Track) {
 	switch playbackStatus {
 	case "None":
-		h.controller.writer.NoteOn(NOTE_STOP, 0)
-		h.controller.writer.NoteOn(NOTE_PLAY, 0)
+		h.controller.writer.NoteOn(NoteStop, 0)
+		h.controller.writer.NoteOn(NotePlay, 0)
 	case "Playing":
-		h.controller.writer.NoteOn(NOTE_STOP, 0)
-		h.controller.writer.NoteOn(NOTE_PLAY, 127)
+		h.controller.writer.NoteOn(NoteStop, 0)
+		h.controller.writer.NoteOn(NotePlay, 127)
 	case "Paused":
-		h.controller.writer.NoteOn(NOTE_STOP, 127)
-		h.controller.writer.NoteOn(NOTE_PLAY, 0)
+		h.controller.writer.NoteOn(NoteStop, 127)
+		h.controller.writer.NoteOn(NotePlay, 0)
 	case "Stopped":
-		h.controller.writer.NoteOn(NOTE_STOP, 127)
-		h.controller.writer.NoteOn(NOTE_PLAY, 0)
+		h.controller.writer.NoteOn(NoteStop, 127)
+		h.controller.writer.NoteOn(NotePlay, 0)
 	}
 
 	if track.isDifferent(h.track) {
@@ -85,11 +103,11 @@ func (h *EventHandler) OnPropertiesChanged(playbackStatus string, track Track) {
 }
 
 func (h *EventHandler) UpdateDisplay() {
-	invert := INVERT_NONE
-	color := COLOR_BLACK
+	invert := InvertNone
+	color := ColorBlack
 
 	if h.player != nil {
-		color = COLOR_WHITE
+		color = ColorWhite
 		if playerColor, ok := playerColorMap[h.player.nameLower]; ok {
 			color = playerColor
 		}
@@ -100,10 +118,10 @@ func (h *EventHandler) UpdateDisplay() {
 		switch h.displayMode {
 		case displayArtistTitle:
 			text = PadRight(h.track.artist, 7, h.displayScroll) + PadRight(h.track.title, 7, h.displayScroll)
-			invert = INVERT_TOP
+			invert = InvertTop
 		case displayArtist:
 			text = PadRight(h.track.artist, 14, h.displayScroll)
-			invert = INVERT_BOTH
+			invert = InvertBoth
 		case displayTitle:
 			text = PadRight(h.track.title, 14, h.displayScroll)
 		case displayAlbum:
@@ -118,13 +136,29 @@ func (h *EventHandler) UpdateDisplay() {
 		trackText = fmt.Sprintf("%d", h.track.trackNumber)
 	}
 
-	playerText := "NoPlayer"
-	if h.player != nil {
-		playerText = "  " + h.player.name
+	segmentText := ""
+	segmentDisplayData := SegmentDisplayData{}
+	switch h.segmentDisplayMode {
+	case segmentDisplayPlayer:
+		segmentText = "NoPlayer"
+		if h.player != nil {
+			segmentText = "  " + h.player.name
+		}
+		text = PadRight(segmentText, 9, 0) + PadLeft(trackText, 3)
+		segmentDisplayData = NewSegmentDisplayData(text)
+	case segmentDisplayTime:
+		segmentText = "   " + time.Now().Format("150405")
+		text = PadRight(segmentText, 9, 0) + PadLeft(trackText, 3)
+		segmentDisplayData = NewSegmentDisplayDataTime(text)
 	}
 
-	text = PadRight(playerText, 9, 0) + PadLeft(trackText, 3)
-	h.controller.writer.SysEx(h.controller.CreateSegmentDisplayData(text))
+	h.controller.writer.SysEx(h.controller.CreateSegmentDisplayData(segmentDisplayData))
+}
+
+func (h *EventHandler) OnTick() {
+	if h.segmentDisplayMode == segmentDisplayTime {
+		h.UpdateDisplay()
+	}
 }
 
 func (h *EventHandler) HandleMidiMessage(pos *mid.Position, msg midi.Message) {
@@ -145,49 +179,59 @@ func (h *EventHandler) handleNoteOn(note *channel.NoteOn) {
 	}
 
 	switch note.Key() {
-	case NOTE_PREVIOUS:
+	case NotePrevious:
 		if h.player != nil {
 			h.player.Previous()
 			h.player.Play()
 		}
-	case NOTE_NEXT:
+	case NoteNext:
 		if h.player != nil {
 			h.player.Next()
 			h.player.Play()
 		}
-	case NOTE_STOP:
+	case NoteStop:
 		if h.player != nil {
 			h.player.Stop()
 		}
-	case NOTE_PLAY:
+	case NotePlay:
 		if h.player != nil {
 			h.player.PlayPause()
 		}
-	case NOTE_ENCODER:
+	case NoteEncoder:
 		h.displayMode = (h.displayMode + 1) % 4
 		h.ResetDisplayScroll()
 		h.UpdateDisplay()
-	case NOTE_BANK_LEFT:
+	case NoteBankLeft:
 		h.monitor.SelectPlayer(-1)
-	case NOTE_BANK_RIGHT:
+	case NoteBankRight:
 		h.monitor.SelectPlayer(+1)
-	case NOTE_FADER:
+	case NoteFader:
 		h.mixer.SetOnVolumeChangeCallback(nil)
+	case NoteTime:
+		if h.segmentDisplayMode == segmentDisplayPlayer {
+			h.segmentDisplayMode = segmentDisplayTime
+			h.controller.writer.NoteOn(NoteTime, 127)
+		} else {
+			h.segmentDisplayMode = segmentDisplayPlayer
+			h.controller.writer.NoteOn(NoteTime, 0)
+		}
+
+		h.UpdateDisplay()
 	}
 }
 
 func (h *EventHandler) handleNoteOff(note *channel.NoteOff) {
 	switch note.Key() {
-	case NOTE_FADER:
+	case NoteFader:
 		h.mixer.SetOnVolumeChangeCallback(h.HandleVolume)
 	}
 }
 
 func (h *EventHandler) handleControlChange(cc *channel.ControlChange) {
 	switch cc.Controller() {
-	case CC_FADER:
+	case CcFader:
 		h.mixer.SetVolume(float32(cc.Value()) / 127)
-	case CC_LED_RING:
+	case CcLedRing:
 		h.displayScroll = int(cc.Value())
 		h.UpdateDisplay()
 	}
@@ -195,11 +239,11 @@ func (h *EventHandler) handleControlChange(cc *channel.ControlChange) {
 
 func (h *EventHandler) ResetDisplayScroll() {
 	h.displayScroll = 0
-	h.controller.writer.ControlChange(CC_LED_RING, 0)
+	h.controller.writer.ControlChange(CcLedRing, 0)
 }
 
 func (h *EventHandler) HandleVolume(volume float32) {
-	h.controller.writer.ControlChange(CC_FADER, uint8(volume*127))
+	h.controller.writer.ControlChange(CcFader, uint8(volume*127))
 }
 
 func PadRight(text string, l int, offset int) string {

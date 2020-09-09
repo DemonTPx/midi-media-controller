@@ -11,6 +11,10 @@ type AudioMixer struct {
 	volume               float32
 }
 
+func NewAudioMixer() *AudioMixer {
+	return &AudioMixer{}
+}
+
 func (m *AudioMixer) Init() error {
 	client, err := pulseaudio.NewClient()
 

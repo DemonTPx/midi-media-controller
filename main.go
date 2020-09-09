@@ -16,7 +16,7 @@ func main() {
 	must(err)
 	defer drv.Close()
 
-	midiController := MidiController{driver: drv, name: "X-Touch One"}
+	midiController := NewMidiController(drv, "X-Touch One")
 	must(midiController.OpenIn())
 	must(midiController.OpenOut())
 	defer midiController.Close()
@@ -28,22 +28,18 @@ func main() {
 	must(err)
 	defer sessionBus.Close()
 
-	playerMonitor := DbusMediaPlayerMonitor{bus: sessionBus}
+	playerMonitor := NewDbusMediaPlayerMonitor(sessionBus)
 	must(playerMonitor.Init())
 
-	audioMixer := AudioMixer{}
+	audioMixer := NewAudioMixer()
 	must(audioMixer.Init())
 
-	eventHandler := EventHandler{
-		controller: &midiController,
-		monitor:    &playerMonitor,
-		mixer:      &audioMixer,
-	}
+	eventHandler := NewEventHandler(midiController, playerMonitor, audioMixer)
 
 	eventHandler.Setup()
 
 	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
 
 	<-signals
 }

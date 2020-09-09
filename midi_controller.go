@@ -17,30 +17,38 @@ type MidiController struct {
 	reader *mid.Reader
 }
 
+func NewMidiController(driver mid.Driver, name string) *MidiController {
+	return &MidiController{
+		driver: driver,
+		name:   name,
+	}
+}
+
 const (
-	CC_FADER        uint8 = 70
-	CC_LED_RING     uint8 = 80
-	CC_LED_METER    uint8 = 90
-	NOTE_ENCODER    uint8 = 0
-	NOTE_PREVIOUS   uint8 = 20
-	NOTE_NEXT       uint8 = 21
-	NOTE_STOP       uint8 = 22
-	NOTE_PLAY       uint8 = 23
-	NOTE_BANK_LEFT  uint8 = 25
-	NOTE_BANK_RIGHT uint8 = 26
-	NOTE_FADER      uint8 = 110
-	COLOR_BLACK     uint8 = 0
-	COLOR_RED       uint8 = 1
-	COLOR_GREEN     uint8 = 2
-	COLOR_YELLOW    uint8 = 3
-	COLOR_BLUE      uint8 = 4
-	COLOR_MAGENTA   uint8 = 5
-	COLOR_CYAN      uint8 = 6
-	COLOR_WHITE     uint8 = 7
-	INVERT_NONE     uint8 = 0
-	INVERT_TOP      uint8 = 1
-	INVERT_BOTTOM   uint8 = 2
-	INVERT_BOTH     uint8 = 3
+	CcFader       uint8 = 70
+	CcLedRing     uint8 = 80
+	CcLedMeter    uint8 = 90
+	NoteEncoder   uint8 = 0
+	NoteTime      uint8 = 1
+	NotePrevious  uint8 = 20
+	NoteNext      uint8 = 21
+	NoteStop      uint8 = 22
+	NotePlay      uint8 = 23
+	NoteBankLeft  uint8 = 25
+	NoteBankRight uint8 = 26
+	NoteFader     uint8 = 110
+	ColorBlack    uint8 = 0
+	ColorRed      uint8 = 1
+	ColorGreen    uint8 = 2
+	ColorYellow   uint8 = 3
+	ColorBlue     uint8 = 4
+	ColorMagenta  uint8 = 5
+	ColorCyan     uint8 = 6
+	ColorWhite    uint8 = 7
+	InvertNone    uint8 = 0
+	InvertTop     uint8 = 1
+	InvertBottom  uint8 = 2
+	InvertBoth    uint8 = 3
 )
 
 func (c *MidiController) OpenOut() error {
@@ -115,12 +123,12 @@ func (c *MidiController) Reset() error {
 		}
 	}
 
-	c.writer.ControlChange(CC_FADER, 0)
-	c.writer.ControlChange(CC_LED_RING, 64)
-	c.writer.ControlChange(CC_LED_METER, 0)
+	c.writer.ControlChange(CcFader, 0)
+	c.writer.ControlChange(CcLedRing, 64)
+	c.writer.ControlChange(CcLedMeter, 0)
 
-	c.writer.SysEx(c.CreateSegmentDisplayData(""))
-	c.writer.SysEx(c.CreateLcdDisplayData("", COLOR_BLACK, INVERT_NONE))
+	c.writer.SysEx(c.CreateSegmentDisplayData(EmptySegmentDisplayData()))
+	c.writer.SysEx(c.CreateLcdDisplayData("", ColorBlack, InvertNone))
 
 	return nil
 }
@@ -134,11 +142,38 @@ func (c *MidiController) CreateLcdDisplayData(characters string, color uint8, in
 	return append([]byte{0x00, 0x20, 0x32, 0x41, 0x4c, 0x00, colorCode}, data...)
 }
 
-func (c *MidiController) CreateSegmentDisplayData(characters string) []byte {
-	textBytes := make([]byte, 12)
-	copy(textBytes, unidecode.Unidecode(characters))
-	data := lcd7bitRender(textBytes)
-	dots := lcd7bitRenderDots(textBytes)
+func (c *MidiController) CreateSegmentDisplayData(data SegmentDisplayData) []byte {
+	return append([]byte{0x00, 0x20, 0x32, 0x41, 0x37}, append(data.text, data.dots...)...)
+}
 
-	return append([]byte{0x00, 0x20, 0x32, 0x41, 0x37}, append(data, dots...)...)
+type SegmentDisplayData struct {
+	text []byte
+	dots []byte
+}
+
+func EmptySegmentDisplayData() SegmentDisplayData {
+	return SegmentDisplayData{
+		text: make([]byte, 12),
+		dots: make([]byte, 2),
+	}
+}
+
+func NewSegmentDisplayData(text string) SegmentDisplayData {
+	textBytes := make([]byte, 12)
+	copy(textBytes, unidecode.Unidecode(text))
+
+	return SegmentDisplayData{
+		text: lcd7bitRender(textBytes),
+		dots: lcd7bitRenderDots(textBytes),
+	}
+}
+
+func NewSegmentDisplayDataTime(text string) SegmentDisplayData {
+	textBytes := make([]byte, 12)
+	copy(textBytes, unidecode.Unidecode(text))
+
+	return SegmentDisplayData{
+		text: lcd7bitRender(textBytes),
+		dots: []byte{0x50, 0x00},
+	}
 }
